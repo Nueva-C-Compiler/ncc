@@ -10,4 +10,16 @@ pub enum Node {
     Statement(Statement),
 }
 pub type Identifier = String;
-pub enum Type {}
+pub enum Type {
+    Void,
+    Char(bool),
+    Short(bool),
+    Int(bool),
+    Long(bool),
+    Float,
+    Double,
+    LongDouble,
+    Struct(Identifier),
+    Enum(Identifier),
+    Other(Identifier),
+}
