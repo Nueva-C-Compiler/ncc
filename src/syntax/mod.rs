@@ -9,7 +9,12 @@ pub enum Node {
     Declaration(Declaration),
     Statement(Statement),
 }
-pub type Identifier = String;
+
+pub struct Identifier {
+    name: String,
+    declaration: Option<Box<Declaration>>,
+}
+
 pub enum Type {
     Void,
     Char(bool),
