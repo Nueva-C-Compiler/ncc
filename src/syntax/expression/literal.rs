@@ -44,6 +44,6 @@ pub struct FloatLiteral {
 }
 
 pub struct CharacterLiteral {
-	value: String,
-	is_wide: bool
+    value: String,
+    is_wide: bool,
 }
