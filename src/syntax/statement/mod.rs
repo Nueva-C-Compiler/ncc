@@ -1,10 +1,10 @@
-use crate::syntax::declaration::Declaration;
 use crate::syntax::expression::Expression;
 pub use crate::syntax::statement::for_loop::ForLoop;
 pub use crate::syntax::statement::if_statement::IfStatement;
 pub use crate::syntax::statement::switch_statement::SwitchStatement;
 pub use crate::syntax::statement::while_loop::WhileLoop;
 use crate::syntax::Identifier;
+use crate::syntax::Node;
 
 mod for_loop;
 mod if_statement;
@@ -33,9 +33,4 @@ pub enum StatementContents {
     ContinueStatement,
     BreakStatement,
     ReturnStatement(Expression),
-}
-
-pub enum Node {
-    Declaration(Declaration),
-    Statement(Statement),
 }
