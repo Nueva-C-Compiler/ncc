@@ -3,9 +3,9 @@ use crate::syntax::statement::Statement;
 
 #[derive(Clone, Debug)]
 pub struct WhileLoop {
-    condition: Expression,
-    statement: Statement,
-    loop_type: WhileType,
+    pub condition: Expression,
+    pub statement: Statement,
+    pub loop_type: WhileType,
 }
 
 #[derive(Clone, Debug)]

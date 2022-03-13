@@ -3,7 +3,7 @@ use crate::syntax::statement::Statement;
 
 #[derive(Clone, Debug)]
 pub struct IfStatement {
-    condition: Expression,
-    statement: Statement,
-    else_statement: Option<Statement>,
+    pub condition: Expression,
+    pub statement: Statement,
+    pub else_statement: Option<Statement>,
 }

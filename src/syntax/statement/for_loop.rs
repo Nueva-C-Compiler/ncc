@@ -4,8 +4,8 @@ use crate::syntax::Node;
 
 #[derive(Clone, Debug)]
 pub struct ForLoop {
-    initializer: Node,
-    condition: Expression,
-    incrementer: Expression,
-    statement: Statement,
+    pub initializer: Node,
+    pub condition: Expression,
+    pub incrementer: Expression,
+    pub statement: Statement,
 }

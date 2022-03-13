@@ -26,21 +26,21 @@ pub enum ReturnType {
 
 #[derive(Clone, Debug)]
 pub struct VariableDeclaration {
-    var_type: VariableType,
-    identifier: Identifier,
-    initializer: Option<Expression>,
+    pub var_type: VariableType,
+    pub identifier: Identifier,
+    pub initializer: Option<Expression>,
 }
 
 #[derive(Clone, Debug)]
 pub struct FunctionParameter {
-    param_type: VariableType,
-    identifier: Identifier,
+    pub param_type: VariableType,
+    pub identifier: Identifier,
 }
 
 #[derive(Clone, Debug)]
 pub struct FunctionDeclaration {
-    return_type: ReturnType,
-    identifier: Identifier,
-    parameters: Vec<FunctionParameter>,
-    body: Option<Vec<Node>>,
+    pub return_type: ReturnType,
+    pub identifier: Identifier,
+    pub parameters: Vec<FunctionParameter>,
+    pub body: Option<Vec<Node>>,
 }

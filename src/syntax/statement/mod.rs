@@ -13,8 +13,8 @@ mod while_loop;
 
 #[derive(Clone, Debug)]
 pub struct Statement {
-    label: Option<Label>,
-    statement_contents: Box<StatementContents>,
+    pub label: Option<Label>,
+    pub statement_contents: Box<StatementContents>,
 }
 
 #[derive(Clone, Debug)]

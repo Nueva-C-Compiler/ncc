@@ -24,10 +24,10 @@ pub enum IntegerLiteralLength {
 
 #[derive(Clone, Debug)]
 pub struct IntegerLiteral {
-    literal_type: IntegerLiteralType,
-    value: i64,
-    is_unsigned: bool,
-    length: IntegerLiteralLength,
+    pub literal_type: IntegerLiteralType,
+    pub value: i64,
+    pub is_unsigned: bool,
+    pub length: IntegerLiteralLength,
 }
 
 #[derive(Clone, Debug)]
@@ -45,13 +45,13 @@ pub enum FloatLength {
 
 #[derive(Clone, Debug)]
 pub struct FloatLiteral {
-    literal_type: FloatLiteralType,
-    value: f64,
-    length: FloatLength,
+    pub literal_type: FloatLiteralType,
+    pub value: f64,
+    pub length: FloatLength,
 }
 
 #[derive(Clone, Debug)]
 pub struct CharacterLiteral {
-    value: String,
-    is_wide: bool,
+    pub value: String,
+    pub is_wide: bool,
 }

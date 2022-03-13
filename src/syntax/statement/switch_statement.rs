@@ -3,6 +3,6 @@ use crate::syntax::statement::Statement;
 
 #[derive(Clone, Debug)]
 pub struct SwitchStatement {
-    match_expression: Expression,
-    statement: Statement,
+    pub match_expression: Expression,
+    pub statement: Statement,
 }

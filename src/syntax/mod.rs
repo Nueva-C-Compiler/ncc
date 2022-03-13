@@ -13,8 +13,8 @@ pub enum Node {
 
 #[derive(Clone, Debug)]
 pub struct Identifier {
-    hash: u64,
-    declaration: Option<Box<Declaration>>,
+    pub hash: u64,
+    pub declaration: Option<Box<Declaration>>,
 }
 
 #[derive(Clone, Debug)]
