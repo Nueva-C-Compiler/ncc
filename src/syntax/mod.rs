@@ -5,16 +5,19 @@ pub mod declaration;
 pub mod expression;
 pub mod statement;
 
+#[derive(Clone, Debug)]
 pub enum Node {
     Declaration(Declaration),
     Statement(Statement),
 }
 
+#[derive(Clone, Debug)]
 pub struct Identifier {
-    name: String,
+    hash: u64,
     declaration: Option<Box<Declaration>>,
 }
 
+#[derive(Clone, Debug)]
 pub enum Type {
     Void,
     Char(bool),

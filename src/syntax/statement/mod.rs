@@ -11,17 +11,20 @@ mod if_statement;
 mod switch_statement;
 mod while_loop;
 
+#[derive(Clone, Debug)]
 pub struct Statement {
     label: Option<Label>,
     statement_contents: Box<StatementContents>,
 }
 
+#[derive(Clone, Debug)]
 pub enum Label {
     Case,
     Default,
     Custom(Identifier),
 }
 
+#[derive(Clone, Debug)]
 pub enum StatementContents {
     Compound(Vec<Node>),
     Expression(Expression),
