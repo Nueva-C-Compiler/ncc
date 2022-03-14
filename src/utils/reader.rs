@@ -242,6 +242,7 @@ impl Iterator for CodepointReader {
 pub struct AtomReader {
     reader: CodepointReader,
     pos: FileLoc,
+    done: bool,
 }
 
 impl AtomReader {
@@ -258,7 +259,8 @@ impl AtomReader {
     pub fn new(path: &Path) -> Result<Self, std::io::Error> {
 	Ok(AtomReader {
 	    reader: CodepointReader::new(path)?,
-	    pos: FileLoc {index: (1,0), offset: 0}
+	    pos: FileLoc {index: (1,0), offset: 0},
+	    done: false
 	})
     }
 }
@@ -275,7 +277,14 @@ impl Iterator for AtomReader {
 	let raw_codepoint = self.reader.next();
 	self.pos.index.1 += 1;
 	let ch = match raw_codepoint {
-	    None => return Some((CharAtom::EOF, self.pos)),
+	    None => {
+		if self.done {
+		    return None;
+		} else {
+		    self.done = true;
+		    return Some((CharAtom::EOF, self.pos));
+		}
+	    },
 	    Some(codepoint) => match codepoint {
 		Codepoint::Invalid(c) => return Some((CharAtom::Invalid(c), self.pos)),
 		Codepoint::Valid(c) => c,
@@ -325,7 +334,7 @@ mod tests {
 	    (CharAtom::Valid('a'), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 1)),
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
     }
 
     #[test]
@@ -337,7 +346,7 @@ mod tests {
 	    (CharAtom::Valid('b'), FileLoc::new((1,2), 1)),
 	    (CharAtom::EOF, FileLoc::new((1,3), 2))
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
     }
 
     #[test]
@@ -352,7 +361,7 @@ mod tests {
 	    (CharAtom::Valid('a'), FileLoc::new((2,1), 4)),
 	    (CharAtom::EOF, FileLoc::new((2,2), 5)),
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
     }
 
     #[test]
@@ -365,7 +374,7 @@ mod tests {
 	    (CharAtom::Valid('c'), FileLoc::new((2,1), 2)),
 	    (CharAtom::EOF, FileLoc::new((2,2), 3))
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
     }
 
     #[test]
@@ -378,7 +387,7 @@ mod tests {
 	    (CharAtom::Valid('c'), FileLoc::new((2,1), 3)),
 	    (CharAtom::EOF, FileLoc::new((2,2), 4))
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
     }
 
     #[test]
@@ -389,7 +398,7 @@ mod tests {
 	    (CharAtom::Invalid(0xF0_00_00_00), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 1))
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
 
 	let path = temp_file("/tmp/ncc-broken-codepoint-2b", &[0xF0, 0xAA]);
 	let reader = AtomReader::new(&path).unwrap();
@@ -397,7 +406,7 @@ mod tests {
 	    (CharAtom::Invalid(0xF0_AA_00_00), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 2))
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
 
 	let path = temp_file("/tmp/ncc-broken-codepoint-3b", &[0xF0, 0xAA, 0xAA]);
 	let reader = AtomReader::new(&path).unwrap();
@@ -405,6 +414,6 @@ mod tests {
 	    (CharAtom::Invalid(0xF0_AA_AA_00), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 3))
 	];
-	assert_eq!(reader.take(expected.len()).collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
     }
 }
