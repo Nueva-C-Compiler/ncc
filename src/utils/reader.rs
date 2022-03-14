@@ -19,12 +19,22 @@ const fn utf8_acc_cont_byte(ch: u32, byte: u8) -> u32 {
     (ch << 6) | (byte & CONT_MASK) as u32
 }
 
+///
+/// An individual Unicode codepoint.
+/// Can potentially take the form of a right-padded u32 if codepoint is invalid.
+///
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Codepoint {
+enum Codepoint {
     Valid(u32),
     Invalid(u32),
 }
 
+///
+/// Any type of newline.
+/// - `Newline::LF` is a line feed, or a UNIX newline `\n`.
+/// - `Newline::CRLF` is a carriage return line feed, or a Windows newline `\r\n`.
+/// - `Newline::CR` is a carriage return, or an old MacOS newline `\r`.
+///
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Newline {
     LF,
@@ -32,6 +42,10 @@ pub enum Newline {
     CR,
 }
 
+///
+/// A singular character: either a Valid character, an Invalid unicode codepoint,
+/// a Newline, or a EOF.
+///
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CharAtom {
     Valid(char),
@@ -40,7 +54,11 @@ pub enum CharAtom {
     EOF,
 }
 
-pub struct CodepointReader {
+///
+/// Reader utilized for accessing a file a codepoint at a time.
+/// Double-buffered and works with lookahead.
+///
+struct CodepointReader {
     f: File,
     buf1: [u8; 4096],
     buf2: [u8; 4096],
@@ -51,6 +69,16 @@ pub struct CodepointReader {
 }
 
 impl CodepointReader {
+    ///
+    /// Initializes a `CodepointReader` to read from a file.
+    ///
+    /// # Arguments
+    /// - `path`: The path to the file to be read from.
+    ///
+    /// # Returns
+    /// Either a `CodepointReader` or a `std::io::Error`
+    /// if opening file and initial reads fail.
+    ///
     fn new(path: &Path) -> Result<Self, std::io::Error> {
         let mut reader = CodepointReader {
             f: File::open(path)?,
@@ -75,6 +103,12 @@ impl CodepointReader {
         Ok(reader)
     }
 
+    ///
+    /// Gets the next byte from the file.
+    ///
+    /// # Returns
+    /// `u8` if there is another byte, `None` if there isn't.
+    /// 
     fn get_byte(&mut self) -> Option<u8> {
         if self.index == 4096 {
             if let Some(_) = self.partial {
@@ -123,6 +157,10 @@ impl CodepointReader {
 impl Iterator for CodepointReader {
     type Item = Codepoint;
 
+    ///
+    /// Parses the next unicode codepoint into a `Codepoint`.
+    /// If a codepoint is invalid/incomplete, will set the remaining bytes to 0. 
+    ///
     fn next(&mut self) -> Option<Self::Item> {
         let x = match self.get_byte() {
             None => return None,
@@ -167,12 +205,37 @@ impl Iterator for CodepointReader {
     }
 }
 
-struct AtomReader {
+/// 
+/// Reader for accessing a file a `CharAtom` at a time.
+///
+/// # Examples
+/// ```
+/// let path = std::path::Path::new("./test.c");
+/// let r = AtomReader::new(&path).unwrap();
+/// for i in r {
+/// 	println!("{:?}", i);
+/// 	if i == CharAtom::EOF {
+/// 		break;
+/// 	}
+/// }
+/// ```
+///
+pub struct AtomReader {
     reader: CodepointReader,
 }
 
 impl AtomReader {
-    fn new(path: &Path) -> Result<Self, std::io::Error> {
+    ///
+    /// Initializes a `AtomReader` to read from a file.
+    ///
+    /// # Arguments
+    /// - `path`: The path to the file to be read from.
+    ///
+    /// # Returns
+    /// Either a `AtomReader` or a `std::io::Error`
+    /// if opening file and initial reads fail.
+    ///
+    pub fn new(path: &Path) -> Result<Self, std::io::Error> {
         Ok(AtomReader {
             reader: CodepointReader::new(path)?
         })
@@ -182,6 +245,9 @@ impl AtomReader {
 impl Iterator for AtomReader {
     type Item = CharAtom;
 
+    ///
+    /// Fetches the next `CharAtom` from the file.
+    ///
     fn next(&mut self) -> Option<Self::Item> {
         let raw_codepoint = self.reader.next();
         let ch = match raw_codepoint {
@@ -211,6 +277,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
+    /// Utility for making a temporary file.
     fn temp_file(p: &'static str, contents: &[u8]) -> &'static Path {
         let path = Path::new(p);
         let mut f = File::create(&path).unwrap();         
