@@ -61,8 +61,17 @@ impl CodepointReader {
             secondary: false,
             last: false,
         };
-        reader.f.read(&mut reader.buf1).unwrap();
-        reader.f.read(&mut reader.buf2).unwrap();
+        let sz = reader.f.read(&mut reader.buf1).unwrap();
+        if sz != 4096 {
+            reader.last = true;
+            reader.partial = Some(sz);
+            return reader;
+        }
+        let sz2 = reader.f.read(&mut reader.buf2).unwrap();
+        if sz2 != 4096 {
+            reader.partial = Some(sz2);
+            return reader;
+        }
         reader
     }
 
@@ -80,8 +89,8 @@ impl CodepointReader {
             self.secondary = !self.secondary;
             self.index = 0;
         }
-        
-        let out = if self.last && self.index > self.partial.unwrap_or(4096) {
+
+        let out = if self.last && self.index >= self.partial.unwrap_or(4096) {
             None
         } else if self.secondary {
             Some(self.buf2[self.index])
@@ -104,8 +113,8 @@ impl CodepointReader {
                 return None;
             }
             match self.secondary {
-                false => Some(self.buf1[self.index+1]),
-                true => Some(self.buf2[self.index+1]),
+                false => Some(self.buf1[self.index]),
+                true => Some(self.buf2[self.index]),
             }
         }
     }
@@ -118,13 +127,16 @@ impl Iterator for CodepointReader {
         let x = match self.get_byte() {
             None => return None,
             Some(c) => c,
-        };        
+        };
         if x < 128 { return Some(Codepoint::Valid(x as u32)); }
 
         let init = utf8_first_byte(x, 2);
         let y = match self.get_byte() {
             None => return Some(Codepoint::Invalid((x as u32) << 24)),
-            Some(c) => c,
+            Some(c) => {
+                println!("Valid second char! {}", c);
+                c
+            }
         };
         let mut ch = utf8_acc_cont_byte(init, y);
         if x >= 0xE0 {
@@ -171,7 +183,7 @@ impl Iterator for AtomReader {
     type Item = CharAtom;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let raw_codepoint = self.reader.next();       
+        let raw_codepoint = self.reader.next();
         let ch = match raw_codepoint {
             None => return Some(CharAtom::EOF),
             Some(codepoint) => match codepoint {
@@ -183,6 +195,7 @@ impl Iterator for AtomReader {
             0x0a => CharAtom::Newline(Newline::LF),
             0x0d => {
                 if self.reader.lookahead().unwrap_or(0x00) == 0x0a {
+                    self.reader.get_byte();
                     CharAtom::Newline(Newline::CRLF)
                 } else {
                     CharAtom::Newline(Newline::CR)
@@ -200,7 +213,7 @@ mod tests {
 
     fn temp_file(p: &'static str, contents: &[u8]) -> &'static Path {
         let path = Path::new(p);
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(&path).unwrap();         
         f.write_all(contents).unwrap();
         path
     }
@@ -208,32 +221,91 @@ mod tests {
     #[test]
     fn single_letter() {
         let path = temp_file("/tmp/ncc-single-letter", b"a");
-        let mut reader = AtomReader::new(&path);
-        assert_eq!(reader.next(), Some(CharAtom::Valid('a' as char)));        
-        assert_eq!(reader.next(), Some(CharAtom::EOF));
+        let reader = AtomReader::new(&path);
+        let expected = vec![
+            CharAtom::Valid('a' as char),
+            CharAtom::EOF,
+        ];
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
     }
 
     #[test]
     fn multi_letter() {
         let path = temp_file("/tmp/ncc-multi-letter", b"ab");
-        let mut reader = AtomReader::new(&path);
-        assert_eq!(reader.next(), Some(CharAtom::Valid('a' as char)));
-        assert_eq!(reader.next(), Some(CharAtom::Valid('b' as char)));
-        assert_eq!(reader.next(), Some(CharAtom::Valid('b' as char)));
-        assert_eq!(reader.next(), Some(CharAtom::EOF));
+        let reader = AtomReader::new(&path);
+        let expected = vec![
+            CharAtom::Valid('a' as char),
+            CharAtom::Valid('b' as char),
+            CharAtom::EOF,
+        ];
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
     }
-    
+
     #[test]
     fn multi_letter_and_newline() {
         let path = temp_file("/tmp/ncc-multi-letter-and-newline", b"abc\na");
-        let mut reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path);
         let expected = vec![
             CharAtom::Valid('a' as char),
             CharAtom::Valid('b' as char),
             CharAtom::Valid('c' as char),
             CharAtom::Newline(Newline::LF),
             CharAtom::Valid('a' as char),
+            CharAtom::EOF,
         ];
-        assert_eq!(reader.take(5).collect::<Vec<CharAtom>>(), expected);
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
+    }
+
+    #[test]
+    fn carriage_return() {
+        let path = temp_file("/tmp/ncc-carriage_return", b"a\rc");
+        let reader = AtomReader::new(&path);
+        let expected = vec![
+            CharAtom::Valid('a' as char),
+            CharAtom::Newline(Newline::CR),
+            CharAtom::Valid('c' as char),
+            CharAtom::EOF,
+        ];
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
+    }
+
+    #[test]
+    fn windows_return() {
+        let path = temp_file("/tmp/ncc-windows-return", b"a\r\nc");
+        let reader = AtomReader::new(&path);
+        let expected = vec![
+            CharAtom::Valid('a' as char),
+            CharAtom::Newline(Newline::CRLF),
+            CharAtom::Valid('c' as char),
+            CharAtom::EOF,
+        ];
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
+    }
+
+    #[test]
+    fn broken_codepoints() {
+        let path = temp_file("/tmp/ncc-broken-codepoint", &[0xF0]);
+        let reader = AtomReader::new(&path);
+        let expected = vec![
+            CharAtom::Invalid(0xF0_00_00_00),
+            CharAtom::EOF,
+        ];
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
+
+        let path = temp_file("/tmp/ncc-broken-codepoint-2b", &[0xF0, 0xAA]);
+        let reader = AtomReader::new(&path);
+        let expected = vec![
+            CharAtom::Invalid(0xF0_AA_00_00),
+            CharAtom::EOF,
+        ];
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
+
+        let path = temp_file("/tmp/ncc-broken-codepoint-3b", &[0xF0, 0xAA, 0xAA]);
+        let reader = AtomReader::new(&path);
+        let expected = vec![
+            CharAtom::Invalid(0xF0_AA_AA_00),
+            CharAtom::EOF,
+        ];
+        assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
     }
 }
