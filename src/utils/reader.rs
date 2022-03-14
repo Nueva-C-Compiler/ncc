@@ -20,27 +20,27 @@ const fn utf8_acc_cont_byte(ch: u32, byte: u8) -> u32 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Codepoint {
+pub enum Codepoint {
     Valid(u32),
     Invalid(u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Newline {
+pub enum Newline {
     LF,
     CRLF,
     CR,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum CharAtom {
+pub enum CharAtom {
     Valid(char),
     Invalid(u32),
     Newline(Newline),
     EOF,
 }
 
-struct CodepointReader {
+pub struct CodepointReader {
     f: File,
     buf1: [u8; 4096],
     buf2: [u8; 4096],
@@ -51,9 +51,9 @@ struct CodepointReader {
 }
 
 impl CodepointReader {
-    fn new(path: &Path) -> Self {
+    fn new(path: &Path) -> Result<Self, std::io::Error> {
         let mut reader = CodepointReader {
-            f: File::open(path).unwrap(),
+            f: File::open(path)?,
             buf1: [0; 4096],
             buf2: [0; 4096],
             index: 0,
@@ -61,18 +61,18 @@ impl CodepointReader {
             secondary: false,
             last: false,
         };
-        let sz = reader.f.read(&mut reader.buf1).unwrap();
+        let sz = reader.f.read(&mut reader.buf1)?;
         if sz != 4096 {
             reader.last = true;
             reader.partial = Some(sz);
-            return reader;
+            return Ok(reader);
         }
-        let sz2 = reader.f.read(&mut reader.buf2).unwrap();
+        let sz2 = reader.f.read(&mut reader.buf2)?;
         if sz2 != 4096 {
             reader.partial = Some(sz2);
-            return reader;
+            return Ok(reader);
         }
-        reader
+        Ok(reader)
     }
 
     fn get_byte(&mut self) -> Option<u8> {
@@ -172,10 +172,10 @@ struct AtomReader {
 }
 
 impl AtomReader {
-    fn new(path: &Path) -> Self {
-        AtomReader {
-            reader: CodepointReader::new(path)
-        }
+    fn new(path: &Path) -> Result<Self, std::io::Error> {
+        Ok(AtomReader {
+            reader: CodepointReader::new(path)?
+        })
     }
 }
 
@@ -221,9 +221,9 @@ mod tests {
     #[test]
     fn single_letter() {
         let path = temp_file("/tmp/ncc-single-letter", b"a");
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
-            CharAtom::Valid('a' as char),
+            CharAtom::Valid('a'),
             CharAtom::EOF,
         ];
         assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
@@ -232,10 +232,10 @@ mod tests {
     #[test]
     fn multi_letter() {
         let path = temp_file("/tmp/ncc-multi-letter", b"ab");
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
-            CharAtom::Valid('a' as char),
-            CharAtom::Valid('b' as char),
+            CharAtom::Valid('a'),
+            CharAtom::Valid('b'),
             CharAtom::EOF,
         ];
         assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
@@ -244,13 +244,13 @@ mod tests {
     #[test]
     fn multi_letter_and_newline() {
         let path = temp_file("/tmp/ncc-multi-letter-and-newline", b"abc\na");
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
-            CharAtom::Valid('a' as char),
-            CharAtom::Valid('b' as char),
-            CharAtom::Valid('c' as char),
+            CharAtom::Valid('a'),
+            CharAtom::Valid('b'),
+            CharAtom::Valid('c'),
             CharAtom::Newline(Newline::LF),
-            CharAtom::Valid('a' as char),
+            CharAtom::Valid('a'),
             CharAtom::EOF,
         ];
         assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
@@ -259,11 +259,11 @@ mod tests {
     #[test]
     fn carriage_return() {
         let path = temp_file("/tmp/ncc-carriage_return", b"a\rc");
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
-            CharAtom::Valid('a' as char),
+            CharAtom::Valid('a'),
             CharAtom::Newline(Newline::CR),
-            CharAtom::Valid('c' as char),
+            CharAtom::Valid('c'),
             CharAtom::EOF,
         ];
         assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
@@ -272,11 +272,11 @@ mod tests {
     #[test]
     fn windows_return() {
         let path = temp_file("/tmp/ncc-windows-return", b"a\r\nc");
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
-            CharAtom::Valid('a' as char),
+            CharAtom::Valid('a'),
             CharAtom::Newline(Newline::CRLF),
-            CharAtom::Valid('c' as char),
+            CharAtom::Valid('c'),
             CharAtom::EOF,
         ];
         assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn broken_codepoints() {
         let path = temp_file("/tmp/ncc-broken-codepoint", &[0xF0]);
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
             CharAtom::Invalid(0xF0_00_00_00),
             CharAtom::EOF,
@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
 
         let path = temp_file("/tmp/ncc-broken-codepoint-2b", &[0xF0, 0xAA]);
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
             CharAtom::Invalid(0xF0_AA_00_00),
             CharAtom::EOF,
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(reader.take(expected.len()).collect::<Vec<CharAtom>>(), expected);
 
         let path = temp_file("/tmp/ncc-broken-codepoint-3b", &[0xF0, 0xAA, 0xAA]);
-        let reader = AtomReader::new(&path);
+        let reader = AtomReader::new(&path).unwrap();
         let expected = vec![
             CharAtom::Invalid(0xF0_AA_AA_00),
             CharAtom::EOF,
