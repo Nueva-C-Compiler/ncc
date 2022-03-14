@@ -5,6 +5,8 @@ pub use crate::syntax::statement::switch_statement::SwitchStatement;
 pub use crate::syntax::statement::while_loop::WhileLoop;
 use crate::syntax::Identifier;
 use crate::syntax::Node;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 mod for_loop;
 mod if_statement;
@@ -14,7 +16,7 @@ mod while_loop;
 #[derive(Clone, Debug)]
 pub struct Statement {
     pub label: Option<Label>,
-    pub statement_contents: Box<StatementContents>,
+    pub statement_contents: Rc<RefCell<StatementContents>>,
 }
 
 #[derive(Clone, Debug)]

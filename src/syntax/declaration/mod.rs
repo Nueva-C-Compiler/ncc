@@ -4,6 +4,7 @@ use crate::syntax::expression::Expression;
 use crate::syntax::Identifier;
 use crate::syntax::Node;
 use crate::syntax::Type;
+use std::cell::RefCell;
 
 #[derive(Clone, Debug)]
 pub enum Declaration {
@@ -28,7 +29,7 @@ pub enum ReturnType {
 pub struct VariableDeclaration {
     pub var_type: VariableType,
     pub identifier: Identifier,
-    pub initializer: Option<Expression>,
+    pub initializer: Option<RefCell<Expression>>,
 }
 
 #[derive(Clone, Debug)]
