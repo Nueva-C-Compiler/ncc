@@ -23,7 +23,7 @@ trait StreamReader {
     type Item;
 
     fn consume(&mut self) -> Self::Item;
-    // fn peek() -> Self::Item;
+    fn collect(&mut self) -> Vec<Self::Item>;
 }
 
 /// Represents position in file.
@@ -44,7 +44,7 @@ impl FileLoc {
 }
 
 /// An individual Unicode codepoint.
-/// Can potentially take the form of a right-padded u32 if codepoint is invalid.
+/// Can potentially the take form of a right-padded u32 if codepoint is invalid.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Codepoint {
     Valid(u32),
@@ -213,6 +213,18 @@ impl StreamReader for CodepointReader {
 	}
 	Some(Codepoint::Valid(ch))
     }
+
+    fn collect(&mut self) -> Vec<Self::Item> {
+	let mut v = Vec::new();
+	loop {
+	    let atom = self.consume();
+	    v.push(atom);
+	    if atom == None {
+		break;
+	    }
+	}
+	v
+    }
 }
 
 /// Reader for accessing a file a `CharAtom` at a time.
@@ -278,7 +290,7 @@ impl StreamReader for AtomReader {
 	    }
 	    _ => CharAtom::Valid(std::char::from_u32(ch).unwrap()),
 	};
-	let out = Some((atom, self.pos));
+	let out = (atom, self.pos);
 	match atom {
 	    CharAtom::Newline(_) => {
 		self.pos.index = (self.pos.index.0 + 1, 0);
@@ -286,6 +298,18 @@ impl StreamReader for AtomReader {
 	    _ => {},
 	};
 	out
+    }
+
+    fn collect(&mut self) -> Vec<Self::Item> {
+	let mut v = Vec::new();
+	loop {
+	    let atom = self.consume();
+	    v.push(atom);
+	    if atom.0 == CharAtom::EOF {
+		break;
+	    }
+	}
+	v
     }
 }
 
@@ -304,31 +328,31 @@ mod tests {
 
     #[test]
     fn single_letter() {
-	let path = temp_file("./ncc-single-letter", b"a");
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-single-letter", b"a");
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Valid('a'), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 1)),
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
     }
 
     #[test]
     fn multi_letter() {
-	let path = temp_file("./ncc-multi-letter", b"ab");
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-multi-letter", b"ab");
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Valid('a'), FileLoc::new((1,1), 0)),
 	    (CharAtom::Valid('b'), FileLoc::new((1,2), 1)),
 	    (CharAtom::EOF, FileLoc::new((1,3), 2))
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
     }
 
     #[test]
     fn multi_letter_and_newline() {
-	let path = temp_file("./ncc-multi-letter-and-newline", b"abc\na");
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-multi-letter-and-newline", b"abc\na");
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Valid('a'), FileLoc::new((1,1), 0)),
 	    (CharAtom::Valid('b'), FileLoc::new((1,2), 1)),
@@ -337,59 +361,59 @@ mod tests {
 	    (CharAtom::Valid('a'), FileLoc::new((2,1), 4)),
 	    (CharAtom::EOF, FileLoc::new((2,2), 5)),
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
     }
 
     #[test]
     fn carriage_return() {
-	let path = temp_file("./ncc-carriage_return", b"a\rc");
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-carriage_return", b"a\rc");
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Valid('a'), FileLoc::new((1,1), 0)),
 	    (CharAtom::Newline(Newline::CR), FileLoc::new((1,2), 1)),
 	    (CharAtom::Valid('c'), FileLoc::new((2,1), 2)),
 	    (CharAtom::EOF, FileLoc::new((2,2), 3))
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
     }
 
     #[test]
     fn windows_return() {
-	let path = temp_file("./ncc-windows-return", b"a\r\nc");
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-windows-return", b"a\r\nc");
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Valid('a'), FileLoc::new((1,1), 0)),
 	    (CharAtom::Newline(Newline::CRLF), FileLoc::new((1,2), 1)),
 	    (CharAtom::Valid('c'), FileLoc::new((2,1), 3)),
 	    (CharAtom::EOF, FileLoc::new((2,2), 4))
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
     }
 
     #[test]
     fn broken_codepoints() {
-	let path = temp_file("./ncc-broken-codepoint", &[0xF0]);
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-broken-codepoint", &[0xF0]);
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Invalid(0xF0_00_00_00), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 1))
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
 
-	let path = temp_file("./ncc-broken-codepoint-2b", &[0xF0, 0xAA]);
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-broken-codepoint-2b", &[0xF0, 0xAA]);
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Invalid(0xF0_AA_00_00), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 2))
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
 
-	let path = temp_file("./ncc-broken-codepoint-3b", &[0xF0, 0xAA, 0xAA]);
-	let reader = AtomReader::new(&path).unwrap();
+	let path = temp_file("./ncc-test-broken-codepoint-3b", &[0xF0, 0xAA, 0xAA]);
+	let mut reader = AtomReader::new(&path).unwrap();
 	let expected = vec![
 	    (CharAtom::Invalid(0xF0_AA_AA_00), FileLoc::new((1,1), 0)),
 	    (CharAtom::EOF, FileLoc::new((1,2), 3))
 	];
-	assert_eq!(reader.collect::<Vec<(CharAtom, FileLoc)>>(), expected);
+	assert_eq!(reader.collect(), expected);
     }
 }
