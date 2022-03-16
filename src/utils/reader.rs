@@ -30,13 +30,19 @@ trait StreamReader {
 /// Contains a index as a one-indexed tuple of (row, column) and a raw byte offset.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FileLoc {
-    pub index: (usize, usize),
+    pub row: usize,
+    pub column: usize,
     pub offset: usize,
 }
 
 impl FileLoc {
+    /// Initializes a `FileLoc` from a tuple (row, column) and a true byte offset.
     pub fn new(index: (usize, usize), offset: usize) -> Self {
-        FileLoc { index, offset }
+        FileLoc {
+            row: index.0,
+            column: index.1,
+            offset,
+        }
     }
 }
 
@@ -44,7 +50,7 @@ impl FileLoc {
 /// Can potentially the take form of a right-padded u32 if codepoint is invalid.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Codepoint {
-    Valid(u32),
+    Valid(char),
     Invalid(u32),
 }
 
@@ -181,7 +187,7 @@ impl StreamReader for CodepointReader {
             Some(c) => c,
         };
         if x < 128 {
-            return Some(Codepoint::Valid(x as u32));
+            return Some(Codepoint::Valid(char::from_u32(x as u32)?));
         }
 
         let init = utf8_first_byte(x, 2);
@@ -210,7 +216,7 @@ impl StreamReader for CodepointReader {
                 ch = (init & 7) << 18 | utf8_acc_cont_byte(y_z, w);
             }
         }
-        Some(Codepoint::Valid(ch))
+        Some(Codepoint::Valid(char::from_u32(ch)?))
     }
 
     fn collect(&mut self) -> Vec<Self::Item> {
@@ -233,10 +239,10 @@ impl StreamReader for CodepointReader {
 /// let path = std::path::Path::new("./test.c");
 /// let r = AtomReader::new(&path).unwrap();
 /// for i in r {
-///	println!("{:?}", i);
-///	if i == CharAtom::EOF {
-///		break;
-///	}
+///     println!("{:?}", i);
+///     if i == CharAtom::EOF {
+///             break;
+///     }
 /// }
 /// ```
 pub struct AtomReader {
@@ -269,7 +275,7 @@ impl StreamReader for AtomReader {
     fn consume(&mut self) -> Self::Item {
         self.pos.offset = self.reader.total_offset;
         let raw_codepoint = self.reader.consume();
-        self.pos.index.1 += 1;
+        self.pos.column += 1;
         let ch = match raw_codepoint {
             None => return (CharAtom::EOF, self.pos),
             Some(codepoint) => match codepoint {
@@ -278,8 +284,8 @@ impl StreamReader for AtomReader {
             },
         };
         let atom = match ch {
-            0x0a => CharAtom::Newline(Newline::LF),
-            0x0d => {
+            '\n' => CharAtom::Newline(Newline::LF),
+            '\r' => {
                 if self.reader.lookahead().unwrap_or(0x00) == 0x0a {
                     self.reader.get_byte();
                     CharAtom::Newline(Newline::CRLF)
@@ -287,12 +293,13 @@ impl StreamReader for AtomReader {
                     CharAtom::Newline(Newline::CR)
                 }
             }
-            _ => CharAtom::Valid(std::char::from_u32(ch).unwrap()),
+            _ => CharAtom::Valid(ch),
         };
         let out = (atom, self.pos);
         match atom {
             CharAtom::Newline(_) => {
-                self.pos.index = (self.pos.index.0 + 1, 0);
+                self.pos.row += 1;
+                self.pos.column = 0;
             }
             _ => {}
         };
@@ -315,7 +322,28 @@ impl StreamReader for AtomReader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use std::{io::Write, path::PathBuf};
+
+    struct TempFile {
+        p: PathBuf,
+    }
+
+    impl TempFile {
+        fn new(p: &'static str, contents: &[u8]) -> Self {
+            let t = TempFile {
+                p: Path::new(p).to_path_buf(),
+            };
+            let mut f = File::create(&p).unwrap();
+            f.write_all(contents).unwrap();
+            t
+        }
+    }
+
+    impl Drop for TempFile {
+        fn drop(&mut self) {
+            std::fs::remove_file(self.p.clone()).unwrap();
+        }
+    }
 
     /// Utility for making a temporary file.
     fn temp_file(p: &'static str, contents: &[u8]) -> &'static Path {
