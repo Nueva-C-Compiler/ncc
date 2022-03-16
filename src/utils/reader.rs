@@ -270,8 +270,7 @@ impl AtomReader {
 impl StreamReader for AtomReader {
     type Item = (CharAtom, FileLoc);
 
-    /// Fetches a tuple of the next `CharAtom` from the file and its location,
-    /// which is itself a tuple of (row, column).
+    /// Fetches a tuple of the next `CharAtom` from the file and its location.
     fn consume(&mut self) -> Self::Item {
         self.pos.offset = self.reader.total_offset;
         let raw_codepoint = self.reader.consume();
