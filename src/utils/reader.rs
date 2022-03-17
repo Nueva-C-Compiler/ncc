@@ -36,7 +36,7 @@ pub struct FileLoc {
 }
 
 impl FileLoc {
-    /// Initializes a `FileLoc` from a tuple (row, column) and a true byte offset.
+    /// Initializes a [FileLoc] from a tuple (row, column) and a true byte offset.
     pub fn new(index: (usize, usize), offset: usize) -> Self {
         FileLoc {
             row: index.0,
@@ -89,13 +89,13 @@ struct CodepointReader {
 }
 
 impl CodepointReader {
-    /// Initializes a `CodepointReader` to read from a file.
+    /// Initializes a [CodepointReader] to read from a file.
     ///
     /// # Arguments
     /// - `path`: The path to the file to be read from.
     ///
     /// # Returns
-    /// Either a `CodepointReader` or a `std::io::Error`
+    /// Either a [CodepointReader] or a [std::io::Error]
     /// if opening file and initial reads fail.
     fn new(path: &Path) -> Result<Self, std::io::Error> {
         let mut reader = CodepointReader {
@@ -232,7 +232,7 @@ impl StreamReader for CodepointReader {
     }
 }
 
-/// Reader for accessing a file a `CharAtom` at a time.
+/// Reader for accessing a file a [CharAtom] at a time.
 ///
 /// # Examples
 /// ```
@@ -251,13 +251,13 @@ pub struct AtomReader {
 }
 
 impl AtomReader {
-    /// Initializes a `AtomReader` to read from a file.
+    /// Initializes a [AtomReader] to read from a file.
     ///
     /// # Arguments
     /// - `path`: The path to the file to be read from.
     ///
     /// # Returns
-    /// Either a `AtomReader` or a `std::io::Error`
+    /// Either a [AtomReader] or a [std::io::Error]
     /// if opening file and initial reads fail.
     pub fn new(path: &Path) -> Result<Self, std::io::Error> {
         Ok(AtomReader {
@@ -270,7 +270,7 @@ impl AtomReader {
 impl StreamReader for AtomReader {
     type Item = (CharAtom, FileLoc);
 
-    /// Fetches a tuple of the next `CharAtom` from the file and its location.
+    /// Fetches a tuple of the next [CharAtom] from the file and its [FileLoc].
     fn consume(&mut self) -> Self::Item {
         self.pos.offset = self.reader.total_offset;
         let raw_codepoint = self.reader.consume();
